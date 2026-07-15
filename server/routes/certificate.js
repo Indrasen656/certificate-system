@@ -4,6 +4,15 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid'); // Used to generate unique verification IDs
 const Certificate = require('../models/certificate');
 const { verifyToken, authorizeRole } = require('../middleware/auth');
+const { sendCertificateEmail } = require('../utils/mailer');
+
+const normalizeStatus = (status) => {
+    if (!status) return 'Active';
+    const normalized = String(status).trim().toLowerCase();
+    if (normalized === 'revoked') return 'Revoked';
+    if (normalized === 'expired') return 'Expired';
+    return 'Active';
+};
 
 // 1. CREATE: Create a new certificate (Admin only)
 const QRCode = require('qrcode');
@@ -25,16 +34,31 @@ router.post('/', verifyToken, authorizeRole('admin'), async (req, res) => {
             verificationId,
             studentEmail,
             rollNumber,
-            status: status || 'Active',
+            status: normalizeStatus(status),
             expiryDate: expiryDate || null,
             templateId: templateId || 'classic'
         });
         await newCertificate.save();
+
+        let emailInfo = null;
+        let emailSent = false;
+        let emailError = null;
+        try {
+            emailInfo = await sendCertificateEmail(newCertificate, verifyUrl);
+            emailSent = true;
+        } catch (sendError) {
+            emailError = sendError.message || 'Failed to send email';
+            console.error('Email send error:', sendError);
+        }
+
         // 4. Return both the saved document and the QR code base64 string
         res.status(201).json({
             message: 'Certificate created successfully',
             certificate: newCertificate,
-            qrCode: qrCodeImage
+            qrCode: qrCodeImage,
+            emailSent,
+            emailError,
+            emailInfo: emailInfo ? { messageId: emailInfo.messageId } : undefined
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -66,12 +90,31 @@ router.post('/bulk', verifyToken, authorizeRole('admin'), async (req, res) => {
                 verificationId,
                 studentEmail,
                 rollNumber,
-                status: status || 'Active',
+                status: normalizeStatus(status),
                 expiryDate: expiryDate || null,
                 templateId: templateId || 'classic'
             });
             await newCertificate.save();
-            savedCertificates.push(newCertificate);
+
+            let emailResult = null;
+            let emailSent = false;
+            let emailError = null;
+            try {
+                const clientUrl = process.env.CLIENT_URL || 'http://localhost:3001';
+                const verifyUrl = `${clientUrl}/verify/${verificationId}`;
+                emailResult = await sendCertificateEmail(newCertificate, verifyUrl);
+                emailSent = true;
+            } catch (sendErr) {
+                emailError = sendErr.message || 'Failed to send email';
+                console.error('Bulk email send error for', studentEmail, sendErr);
+            }
+
+            savedCertificates.push({
+                certificate: newCertificate,
+                emailSent,
+                emailError,
+                emailInfo: emailResult ? { messageId: emailResult.messageId } : undefined
+            });
         }
 
         res.status(201).json({
@@ -151,7 +194,7 @@ router.get('/verify/:verificationId', async (req, res) => {
             return res.status(404).json({ isValid: false, message: 'Certificate is invalid or does not exist' });
         }
 
-        let currentStatus = certificate.status || 'Active';
+        let currentStatus = normalizeStatus(certificate.status);
         if (currentStatus === 'Active' && certificate.expiryDate && new Date() > new Date(certificate.expiryDate)) {
             currentStatus = 'Expired';
         }
@@ -185,7 +228,7 @@ router.post('/verify', async (req, res) => {
             return res.status(404).json({ isValid: false, message: 'Certificate verification failed. Invalid ID or unique code.' });
         }
 
-        let currentStatus = certificate.status || 'Active';
+        let currentStatus = normalizeStatus(certificate.status);
         if (currentStatus === 'Active' && certificate.expiryDate && new Date() > new Date(certificate.expiryDate)) {
             currentStatus = 'Expired';
         }
@@ -206,10 +249,11 @@ router.post('/verify', async (req, res) => {
 router.put('/:id', verifyToken, authorizeRole('admin'), async (req, res) => {
     try {
         const { studentName, course, issueDate, status, expiryDate, templateId } = req.body;
+        const normalizedStatus = normalizeStatus(status);
 
         const updatedCertificate = await Certificate.findByIdAndUpdate(
             req.params.id,
-            { studentName, course, issueDate, status, expiryDate, templateId },
+            { studentName, course, issueDate, status: normalizedStatus, expiryDate, templateId },
             { new: true, runValidators: true } // Returns the newly updated document
         );
 

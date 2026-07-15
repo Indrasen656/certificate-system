@@ -12,6 +12,14 @@ const VerifyCertificate = () => {
         verifyId();
     }, [verificationId]);
 
+    const getNormalizedStatus = (status) => {
+        if (!status) return 'Active';
+        const normalized = String(status).trim().toLowerCase();
+        if (normalized === 'revoked') return 'Revoked';
+        if (normalized === 'expired') return 'Expired';
+        return 'Active';
+    };
+
     const verifyId = async () => {
         setLoading(true);
         try {
@@ -28,6 +36,8 @@ const VerifyCertificate = () => {
             setLoading(false);
         }
     };
+
+    const certificateStatus = result ? getNormalizedStatus(result.certificate?.status) : 'Active';
 
     return (
         <div className="verify-container">
@@ -62,13 +72,13 @@ const VerifyCertificate = () => {
                 ) : result && result.isValid ? (
                     <div className="verify-success">
                         <div className="badge-wrapper">
-                            {(result.certificate.status === 'Active' || !result.certificate.status) && (
+                            {(certificateStatus === 'Active') && (
                                 <span className="verified-badge status-active">✓ Verified & Active</span>
                             )}
-                            {result.certificate.status === 'Expired' && (
+                            {certificateStatus === 'Expired' && (
                                 <span className="verified-badge status-expired">⚠ Expired</span>
                             )}
-                            {result.certificate.status === 'Revoked' && (
+                            {certificateStatus === 'Revoked' && (
                                 <span className="verified-badge status-revoked">✖ Revoked (Invalidated)</span>
                             )}
                         </div>
@@ -76,14 +86,14 @@ const VerifyCertificate = () => {
                             Verified Ledger Hash: <code className="hash-code">{result.certificate.verificationId}</code>
                         </div>
                         <h2>
-                            {(!result.certificate.status || result.certificate.status === 'Active') && "Certificate is Valid"}
-                            {result.certificate.status === 'Expired' && "Certificate has Expired"}
-                            {result.certificate.status === 'Revoked' && "Certificate is Revoked"}
+                            {certificateStatus === 'Active' && "Certificate is Valid"}
+                            {certificateStatus === 'Expired' && "Certificate has Expired"}
+                            {certificateStatus === 'Revoked' && "Certificate is Revoked"}
                         </h2>
-                        <p className="card-subtitle" style={{ color: result.certificate.status === 'Revoked' ? '#ef4444' : 'var(--text-secondary)' }}>
-                            {(!result.certificate.status || result.certificate.status === 'Active') && "This educational credential is valid and active."}
-                            {result.certificate.status === 'Expired' && "This credential has expired and is no longer active."}
-                            {result.certificate.status === 'Revoked' && "WARNING: This certificate has been revoked due to administrative action or academic record update."}
+                        <p className="card-subtitle" style={{ color: certificateStatus === 'Revoked' ? '#ef4444' : 'var(--text-secondary)' }}>
+                            {certificateStatus === 'Active' && "This educational credential is valid and active."}
+                            {certificateStatus === 'Expired' && "This credential has expired and is no longer active."}
+                            {certificateStatus === 'Revoked' && "WARNING: This certificate has been revoked due to administrative action or academic record update."}
                         </p>
 
                         <div className="cert-details-card">
