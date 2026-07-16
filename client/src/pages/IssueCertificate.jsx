@@ -307,24 +307,27 @@ const IssueCertificate = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {bulkSuccess.certificates.map((cert) => (
-                                        <tr key={cert._id}>
-                                            <td>{cert.studentName}</td>
-                                            <td>{cert.course}</td>
-                                            <td>{cert.rollNumber}</td>
-                                            <td><span className="status-badge active">{cert.status}</span></td>
-                                            <td>
-                                                <a
-                                                    href={`/api/certificates/download/${cert._id}`}
-                                                    className="btn-text-download"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                >
-                                                    Download PDF
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {bulkSuccess.certificates.map((certItem) => {
+                                        const cert = certItem.certificate || certItem;
+                                        return (
+                                            <tr key={cert._id}>
+                                                <td>{cert.studentName}</td>
+                                                <td>{cert.course}</td>
+                                                <td>{cert.rollNumber}</td>
+                                                <td><span className="status-badge active">{cert.status}</span></td>
+                                                <td>
+                                                    <a
+                                                        href={`/api/certificates/download/${cert._id}`}
+                                                        className="btn-text-download"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        Download PDF
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

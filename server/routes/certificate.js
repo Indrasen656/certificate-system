@@ -6,6 +6,29 @@ const Certificate = require('../models/certificate');
 const { verifyToken, authorizeRole } = require('../middleware/auth');
 const { sendCertificateEmail } = require('../utils/mailer');
 
+const parseDateValue = (value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value instanceof Date) return value;
+
+    const trimmed = String(value).trim();
+    if (!trimmed) return undefined;
+
+    // Accept ISO 8601 first, then common human-readable formats like DD-MM-YYYY or DD/MM/YYYY
+    const isoMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}$/);
+    if (isoMatch) {
+        return new Date(trimmed);
+    }
+
+    const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+        const [_, day, month, year] = dmyMatch;
+        return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+    }
+
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
 const normalizeStatus = (status) => {
     if (!status) return 'Active';
     const normalized = String(status).trim().toLowerCase();
@@ -30,12 +53,12 @@ router.post('/', verifyToken, authorizeRole('admin'), async (req, res) => {
         const newCertificate = new Certificate({
             studentName,
             course,
-            issueDate: issueDate || new Date(),
+            issueDate: parseDateValue(issueDate) || new Date(),
             verificationId,
             studentEmail,
             rollNumber,
             status: normalizeStatus(status),
-            expiryDate: expiryDate || null,
+            expiryDate: parseDateValue(expiryDate) || null,
             templateId: templateId || 'classic'
         });
         await newCertificate.save();
@@ -86,12 +109,12 @@ router.post('/bulk', verifyToken, authorizeRole('admin'), async (req, res) => {
             const newCertificate = new Certificate({
                 studentName,
                 course,
-                issueDate: issueDate || new Date(),
+                issueDate: parseDateValue(issueDate) || new Date(),
                 verificationId,
                 studentEmail,
                 rollNumber,
                 status: normalizeStatus(status),
-                expiryDate: expiryDate || null,
+                expiryDate: parseDateValue(expiryDate) || null,
                 templateId: templateId || 'classic'
             });
             await newCertificate.save();
